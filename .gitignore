@@ -1,0 +1,73 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+*/node_modules/
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist/
+build/
+*/dist/
+*/build/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local development
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Database
+*.db
+*.db-*
+dev.db
+staging.db
+prod.db
+
+# Uploads (exclude defaults, include actual uploads)
+backend/uploads/audio/*
+backend/uploads/covers/*
+!backend/uploads/audio/.gitkeep
+!backend/uploads/covers/.gitkeep
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+
+# AWS & credentials
+.aws/
+*.pem
+*.key
+!scripts/README.md
+
+# CI/CD
+.jenkins/
+.github/secrets/
+
+# OS files
+Thumbs.db
+.DS_Store
+.env.backup
+
+# Testing
+coverage/
+.nyc_output/
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace

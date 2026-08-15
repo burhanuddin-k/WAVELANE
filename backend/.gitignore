@@ -1,0 +1,7 @@
+node_modules
+dev.db
+uploads/audio/*
+uploads/covers/*
+!uploads/audio/.gitkeep
+!uploads/covers/.gitkeep
+.env
