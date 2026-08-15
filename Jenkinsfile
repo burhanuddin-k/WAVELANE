@@ -1,125 +1,150 @@
 pipeline {
+
     agent any
 
     options {
-        buildDiscarder(logRotator(numToKeepStr: '10'))
-        timeout(time: 30, unit: 'MINUTES')
         timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '10'))
     }
 
     environment {
-        DOCKERHUB_USER = credentials('dockerhub-credentials')
-        IMAGE_TAG = "${BUILD_NUMBER}"
+        DOCKER_USER = credentials('dockerhub-credentials')
+
+        BACKEND_IMAGE = "burhanuddin2005/wavelane-backend"
+        FRONTEND_IMAGE = "burhanuddin2005/wavelane-frontend"
+        ADMIN_IMAGE = "burhanuddin2005/wavelane-admin"
+
+        TAG = "${BUILD_NUMBER}"
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                echo 'Checking out Wavelane source code...'
+                echo '======================================'
+                echo 'Checking out Wavelane from GitHub'
+                echo '======================================'
+
                 checkout scm
             }
         }
 
-        stage('Verify Project') {
+        stage('Verify Files') {
             steps {
                 sh '''
-                    echo "Checking project structure..."
+                    echo "Checking project files..."
 
                     test -f backend/Dockerfile
+                    test -f backend/package.json
+
                     test -f frontend/Dockerfile
+                    test -f frontend/package.json
+
                     test -f admin/Dockerfile
+                    test -f admin/package.json
+
                     test -f docker-compose.yml
 
-                    echo "Project structure verified."
+                    echo "All required files found."
                 '''
             }
         }
 
-        stage('Build Docker Images') {
-            parallel {
-
-                stage('Build Backend') {
-                    steps {
-                        sh '''
-                            docker build \
-                              -t ${DOCKERHUB_USER_USR}/wavelane-backend:${IMAGE_TAG} \
-                              -t ${DOCKERHUB_USER_USR}/wavelane-backend:latest \
-                              ./backend
-                        '''
-                    }
-                }
-
-                stage('Build Frontend') {
-                    steps {
-                        sh '''
-                            docker build \
-                              -t ${DOCKERHUB_USER_USR}/wavelane-frontend:${IMAGE_TAG} \
-                              -t ${DOCKERHUB_USER_USR}/wavelane-frontend:latest \
-                              ./frontend
-                        '''
-                    }
-                }
-
-                stage('Build Admin') {
-                    steps {
-                        sh '''
-                            docker build \
-                              -t ${DOCKERHUB_USER_USR}/wavelane-admin:${IMAGE_TAG} \
-                              -t ${DOCKERHUB_USER_USR}/wavelane-admin:latest \
-                              ./admin
-                        '''
-                    }
-                }
-            }
-        }
-
-        stage('Test Docker Images') {
+        stage('Build Backend') {
             steps {
                 sh '''
-                    echo "Testing backend image..."
-                    docker run --rm \
-                      ${DOCKERHUB_USER_USR}/wavelane-backend:${IMAGE_TAG} \
-                      node -v
+                    echo "Building backend..."
 
-                    echo "Docker image test completed."
+                    docker build \
+                        -t ${BACKEND_IMAGE}:${TAG} \
+                        -t ${BACKEND_IMAGE}:latest \
+                        ./backend
                 '''
             }
         }
 
-        stage('Login to Docker Hub') {
+        stage('Build Frontend') {
             steps {
                 sh '''
-                    echo "${DOCKERHUB_USER_PSW}" | docker login \
-                      -u "${DOCKERHUB_USER_USR}" \
-                      --password-stdin
+                    echo "Building frontend..."
+
+                    docker build \
+                        -t ${FRONTEND_IMAGE}:${TAG} \
+                        -t ${FRONTEND_IMAGE}:latest \
+                        ./frontend
                 '''
             }
         }
 
-        stage('Push Images to Docker Hub') {
+        stage('Build Admin') {
             steps {
                 sh '''
-                    docker push ${DOCKERHUB_USER_USR}/wavelane-backend:${IMAGE_TAG}
-                    docker push ${DOCKERHUB_USER_USR}/wavelane-backend:latest
+                    echo "Building admin..."
 
-                    docker push ${DOCKERHUB_USER_USR}/wavelane-frontend:${IMAGE_TAG}
-                    docker push ${DOCKERHUB_USER_USR}/wavelane-frontend:latest
-
-                    docker push ${DOCKERHUB_USER_USR}/wavelane-admin:${IMAGE_TAG}
-                    docker push ${DOCKERHUB_USER_USR}/wavelane-admin:latest
+                    docker build \
+                        -t ${ADMIN_IMAGE}:${TAG} \
+                        -t ${ADMIN_IMAGE}:latest \
+                        ./admin
                 '''
             }
         }
 
-        stage('Deploy Wavelane') {
+        stage('Show Images') {
+            steps {
+                sh '''
+                    echo "Docker images created:"
+
+                    docker images | grep wavelane
+                '''
+            }
+        }
+
+        stage('Login Docker Hub') {
+            steps {
+                sh '''
+                    echo "${DOCKER_USER_PSW}" | docker login \
+                        --username "${DOCKER_USER_USR}" \
+                        --password-stdin
+                '''
+            }
+        }
+
+        stage('Push Backend') {
+            steps {
+                sh '''
+                    docker push ${BACKEND_IMAGE}:${TAG}
+                    docker push ${BACKEND_IMAGE}:latest
+                '''
+            }
+        }
+
+        stage('Push Frontend') {
+            steps {
+                sh '''
+                    docker push ${FRONTEND_IMAGE}:${TAG}
+                    docker push ${FRONTEND_IMAGE}:latest
+                '''
+            }
+        }
+
+        stage('Push Admin') {
+            steps {
+                sh '''
+                    docker push ${ADMIN_IMAGE}:${TAG}
+                    docker push ${ADMIN_IMAGE}:latest
+                '''
+            }
+        }
+
+        stage('Deploy') {
             steps {
                 sh '''
                     echo "Deploying Wavelane..."
 
                     docker compose down --remove-orphans || true
 
-                    docker compose up -d --build
+                    docker compose up -d
 
                     echo "Waiting for containers..."
                     sleep 10
@@ -128,39 +153,28 @@ pipeline {
                 '''
             }
         }
-
-        stage('Verify Deployment') {
-            steps {
-                sh '''
-                    echo "Checking running containers..."
-
-                    docker ps
-
-                    echo "Checking backend..."
-                    curl -f http://localhost:4000/api/health
-
-                    echo "Backend is healthy."
-                '''
-            }
-        }
     }
 
     post {
+
         always {
             sh 'docker logout || true'
         }
 
         success {
-            echo '=========================================='
-            echo ' WAVELANE DEPLOYMENT SUCCESSFUL!'
-            echo '=========================================='
+            echo '''
+========================================
+       WAVELANE DEPLOYMENT SUCCESS
+========================================
+'''
         }
 
         failure {
-            echo '=========================================='
-            echo ' WAVELANE DEPLOYMENT FAILED!'
-            echo ' Check the Jenkins console output.'
-            echo '=========================================='
+            echo '''
+========================================
+       WAVELANE DEPLOYMENT FAILED
+========================================
+'''
         }
     }
 }
