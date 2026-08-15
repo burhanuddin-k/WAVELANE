@@ -1,69 +1,23 @@
-version: '3.8'
-
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: wavelane-backend
+    build: ./backend
+    image: burhanuddin2005/wavelane-backend:latest
     ports:
-      - "4000:4000"
+      - "5000:5000"
     environment:
-      - DATABASE_URL=file:./dev.db
-      - JWT_SECRET=change-this-in-production
-      - PORT=4000
-      - ADMIN_EMAIL=admin@wavelane.app
-      - ADMIN_PASSWORD=admin1234
-    volumes:
-      - ./backend/uploads:/app/uploads
-      - ./backend/dev.db:/app/dev.db
-    networks:
-      - wavelane-network
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 5s
+      - NODE_ENV=production
+    restart: always
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: wavelane-frontend
+    build: ./frontend
+    image: burhanuddin2005/wavelane-frontend:latest
     ports:
-      - "3000:80"
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - wavelane-network
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      - "80:80"
+    restart: always
 
   admin:
-    build:
-      context: ./admin
-      dockerfile: Dockerfile
-    container_name: wavelane-admin
+    build: ./admin
+    image: burhanuddin2005/wavelane-admin:latest
     ports:
-      - "3001:80"
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - wavelane-network
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-networks:
-  wavelane-network:
-    driver: bridge
+      - "8080:80"
+    restart: always
