@@ -1,15 +1,5 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Wavelane Admin</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
+<!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WaveLane Admin Studio</title><link rel="stylesheet" href="/admin.css"></head><body>
+<header><a href="/"><b>W</b> WaveLane</a><strong>Admin Studio</strong><a href="/">Open listener app ↗</a></header><main>
+<div id="stats" class="stats"></div><section><h1>Upload new music</h1><p>Add a song directly from your device.</p><form id="form" enctype="multipart/form-data">
+<div class="grid"><label>Song title<input name="title" required placeholder="Midnight Drive"></label><label>Artist<input name="artist" required placeholder="Artist name"></label><label>Album<input name="album" placeholder="Single"></label><label>Genre<select name="genre"><option>Pop</option><option>Hip-Hop</option><option>Rock</option><option>Electronic</option><option>Lo-Fi</option><option>Bollywood</option><option>Classical</option><option>Other</option></select></label><label class="wide">Description<textarea name="description"></textarea></label><label>Audio file<input name="audio" type="file" accept="audio/*" required></label><label>Cover image<input name="cover" type="file" accept="image/*"></label></div>
+<button class="upload">Upload & Publish</button><p id="msg"></p></form></section><section><div class="rowhead"><div><h2>Music catalog</h2><p>Edit your music library from here.</p></div><button id="refresh">Refresh</button></div><div id="catalog"></div></section></main><script src="/admin.js"></script></body></html>

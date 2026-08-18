@@ -1,0 +1,18 @@
+WAVELANE COMPLETE
+
+1. Extract/open this folder in VS Code.
+2. Open Terminal.
+3. Run:
+   npm install
+   npm start
+4. Listener website:
+   http://localhost:4000/
+5. Admin upload:
+   http://localhost:4000/admin/
+
+Upload MP3/audio + optional cover image. The song immediately appears on the listener website.
+
+Docker:
+   docker compose up -d --build
+
+This version intentionally has direct admin access because you requested no login. Add authentication before exposing the admin page publicly.

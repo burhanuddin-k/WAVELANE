@@ -1,0 +1,11 @@
+<!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WaveLane</title><link rel="stylesheet" href="/style.css"></head><body>
+<div class="shell"><aside><div class="brand"><b>W</b> WaveLane</div>
+<nav><button class="active" data-view="home">⌂ Home</button><button data-view="discover">◈ Discover</button><button data-view="library">▣ Library</button><button data-view="liked">♡ Liked Songs</button><button data-view="recent">◷ Recently Played</button></nav>
+<a class="admin" href="/admin/">⚙ Admin Studio</a></aside>
+<main><header><div class="arrows"><button>‹</button><button>›</button></div><div class="search">⌕ <input id="search" placeholder="What do you want to listen to?"></div><div class="avatar">B</div></header><div id="content"></div></main></div>
+<footer><div class="now"><img id="pc" src="/assets/default-cover.svg"><div><b id="pt">Choose a song</b><small id="pa">WaveLane</small></div><button id="like">♡</button></div>
+<div class="controls"><div><button id="shuffle">⤨</button><button id="prev">◀</button><button id="play">▶</button><button id="next">▶</button><button id="repeat">↻</button></div>
+<div class="seek"><span id="cur">0:00</span><input id="bar" type="range" min="0" max="100" value="0"><span id="dur">0:00</span></div></div>
+<div class="vol">🔊 <input id="volume" type="range" min="0" max="1" step=".01" value=".8"></div></footer>
+<audio id="audio"></audio><script src="/app.js"></script></body></html>
