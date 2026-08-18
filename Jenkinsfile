@@ -67,11 +67,14 @@ pipeline {
         }
 
         stage('Deploy') {
-            steps {
-                sh '''
-                    docker compose down || true
-                    docker compose up -d --build
-                '''
+    steps {
+        sh '''
+            docker compose down --remove-orphans || true
+            docker rm -f wavelane 2>/dev/null || true
+            docker compose up -d --build
+        '''
+    }
+}
             }
         }
 
