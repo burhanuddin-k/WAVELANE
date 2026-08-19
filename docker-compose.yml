@@ -1,10 +1,14 @@
+version: '3.8'
+
 services:
   wavelane:
-    build: .
     container_name: wavelane
+    build: .
     ports:
       - "4000:4000"
+    environment:
+      - PORT=4000
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
-    restart: unless-stopped
+    restart: always
