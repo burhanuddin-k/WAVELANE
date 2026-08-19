@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 
 // Ensure upload directories exist
 const uploadDirs = ['uploads/audio', 'uploads/covers', 'data'];
@@ -12,14 +12,14 @@ uploadDirs.forEach(dir => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-// JSON DB Helper
+// Database Setup
 const dbPath = path.join(__dirname, 'data', 'songs.json');
 if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, JSON.stringify([]));
 
 const getSongs = () => JSON.parse(fs.readFileSync(dbPath, 'utf8'));
 const saveSongs = (data) => fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
 
-// File Upload Storage Engine
+// Multer File Upload Configuration
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     if (file.fieldname === 'audio') cb(null, 'uploads/audio/');
@@ -41,9 +41,12 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/admin', express.static(path.join(__dirname, 'admin')));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- API ROUTES ---
+// --- HEALTH CHECK FOR JENKINS ---
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime() });
+});
 
-// Stats API
+// --- API ROUTES ---
 app.get('/api/stats', (req, res) => {
   const songs = getSongs();
   const totalPlays = songs.reduce((acc, s) => acc + (s.plays || 0), 0);
@@ -56,19 +59,17 @@ app.get('/api/stats', (req, res) => {
   });
 });
 
-// Get all songs (for listener app and admin catalog)
 app.get('/api/admin/songs', (req, res) => {
   res.json(getSongs());
 });
 
-// Upload new song
 app.post('/api/admin/songs', upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), (req, res) => {
   try {
-    const { title, artist, album, genre, description } = req.body;
     if (!req.files.audio) {
       return res.status(400).json({ error: 'Audio file is required.' });
     }
 
+    const { title, artist, album, genre, description } = req.body;
     const songs = getSongs();
     const newSong = {
       id: Date.now().toString(),
@@ -87,11 +88,10 @@ app.post('/api/admin/songs', upload.fields([{ name: 'audio', maxCount: 1 }, { na
     saveSongs(songs);
     res.status(201).json(newSong);
   } catch (err) {
-    res.status(500).json({ error: 'Server failed to process upload.' });
+    res.status(500).json({ error: 'Failed to upload song.' });
   }
 });
 
-// Track play count increment
 app.post('/api/songs/:id/play', (req, res) => {
   const songs = getSongs();
   const song = songs.find(s => s.id === req.params.id);
@@ -103,13 +103,11 @@ app.post('/api/songs/:id/play', (req, res) => {
   res.status(404).json({ error: 'Song not found' });
 });
 
-// Delete song
 app.delete('/api/admin/songs/:id', (req, res) => {
   let songs = getSongs();
   const songToDelete = songs.find(s => s.id === req.params.id);
 
   if (songToDelete) {
-    // Clean up local files
     const deleteFile = (url) => {
       if (url && !url.includes('/assets/')) {
         const filePath = path.join(__dirname, url);
@@ -126,7 +124,6 @@ app.delete('/api/admin/songs/:id', (req, res) => {
   res.status(404).json({ error: 'Song not found' });
 });
 
-// Start Server
 app.listen(PORT, () => {
-  console.log(`WaveLane Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
