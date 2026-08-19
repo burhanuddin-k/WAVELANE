@@ -1,76 +1,132 @@
-import express from "express";
-import multer from "multer";
-import path from "path";
-import fs from "fs";
-import Database from "better-sqlite3";
-import {fileURLToPath} from "url";
+const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
-const __filename=fileURLToPath(import.meta.url), __dirname=path.dirname(__filename);
-const PORT=process.env.PORT||4000, app=express();
-const DATA=path.join(__dirname,"data"), AUDIO=path.join(__dirname,"uploads/audio"), COVERS=path.join(__dirname,"uploads/covers");
-[DATA,AUDIO,COVERS].forEach(x=>fs.mkdirSync(x,{recursive:true}));
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-const db=new Database(path.join(DATA,"wavelane.db"));
-db.exec(`CREATE TABLE IF NOT EXISTS songs(
-id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,artist TEXT NOT NULL,
-album TEXT DEFAULT 'Single',genre TEXT DEFAULT 'Other',description TEXT DEFAULT '',
-audio_url TEXT NOT NULL,cover_url TEXT DEFAULT '',duration INTEGER DEFAULT 0,
-plays INTEGER DEFAULT 0,published INTEGER DEFAULT 1,created_at TEXT DEFAULT CURRENT_TIMESTAMP)`);
+// Ensure upload directories exist
+const uploadDirs = ['uploads/audio', 'uploads/covers', 'data'];
+uploadDirs.forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
 
+// JSON DB Helper
+const dbPath = path.join(__dirname, 'data', 'songs.json');
+if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, JSON.stringify([]));
+
+const getSongs = () => JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+const saveSongs = (data) => fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
+
+// File Upload Storage Engine
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    if (file.fieldname === 'audio') cb(null, 'uploads/audio/');
+    else if (file.fieldname === 'cover') cb(null, 'uploads/covers/');
+    else cb(new Error('Invalid field'), null);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ storage });
+
+// Middleware
 app.use(express.json());
-app.use(express.static(path.join(__dirname,"public")));
-app.use("/admin",express.static(path.join(__dirname,"admin")));
-app.use("/uploads",express.static(path.join(__dirname,"uploads")));
+app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/admin', express.static(path.join(__dirname, 'admin')));
+app.use(express.static(path.join(__dirname, 'public')));
 
-const storage=multer.diskStorage({
- destination:(req,file,cb)=>cb(null,file.fieldname==="audio"?AUDIO:COVERS),
- filename:(req,file,cb)=>cb(null,`${Date.now()}-${Math.random().toString(36).slice(2)}${path.extname(file.originalname).toLowerCase()}`)
-});
-const upload=multer({storage,limits:{fileSize:100*1024*1024},fileFilter:(req,file,cb)=>{
- if(file.fieldname==="audio"&&file.mimetype.startsWith("audio/")) return cb(null,true);
- if(file.fieldname==="cover"&&file.mimetype.startsWith("image/")) return cb(null,true);
- cb(new Error("Invalid file type"));
-}});
+// --- API ROUTES ---
 
-app.get("/api/health",(req,res)=>res.json({ok:true,name:"WaveLane"}));
-app.get("/api/songs",(req,res)=>{
- const q=String(req.query.q||"").trim(), genre=String(req.query.genre||"").trim();
- let rows;
- if(q){const x=`%${q}%`;rows=db.prepare("SELECT * FROM songs WHERE published=1 AND (title LIKE ? OR artist LIKE ? OR album LIKE ? OR genre LIKE ?) ORDER BY created_at DESC").all(x,x,x,x)}
- else if(genre) rows=db.prepare("SELECT * FROM songs WHERE published=1 AND genre=? ORDER BY created_at DESC").all(genre);
- else rows=db.prepare("SELECT * FROM songs WHERE published=1 ORDER BY created_at DESC").all();
- res.json(rows);
+// Stats API
+app.get('/api/stats', (req, res) => {
+  const songs = getSongs();
+  const totalPlays = songs.reduce((acc, s) => acc + (s.plays || 0), 0);
+  const uniqueArtists = new Set(songs.map(s => s.artist)).size;
+  res.json({
+    songs: songs.length,
+    published: songs.length,
+    plays: totalPlays,
+    artists: uniqueArtists
+  });
 });
-app.get("/api/admin/songs",(req,res)=>res.json(db.prepare("SELECT * FROM songs ORDER BY id DESC").all()));
-app.get("/api/stats",(req,res)=>res.json({
- songs:db.prepare("SELECT COUNT(*) c FROM songs").get().c,
- published:db.prepare("SELECT COUNT(*) c FROM songs WHERE published=1").get().c,
- plays:db.prepare("SELECT COALESCE(SUM(plays),0) c FROM songs").get().c,
- artists:db.prepare("SELECT COUNT(DISTINCT artist) c FROM songs").get().c
-}));
-app.post("/api/admin/songs",upload.fields([{name:"audio",maxCount:1},{name:"cover",maxCount:1}]),(req,res)=>{
- const audio=req.files?.audio?.[0], cover=req.files?.cover?.[0];
- if(!audio)return res.status(400).json({error:"Audio file is required"});
- const title=String(req.body.title||"").trim(), artist=String(req.body.artist||"").trim();
- if(!title||!artist)return res.status(400).json({error:"Title and artist are required"});
- const r=db.prepare(`INSERT INTO songs(title,artist,album,genre,description,audio_url,cover_url,published)
- VALUES(?,?,?,?,?,?,?,?)`).run(title,artist,String(req.body.album||"Single"),String(req.body.genre||"Other"),
- String(req.body.description||""),`/uploads/audio/${audio.filename}`,cover?`/uploads/covers/${cover.filename}`:"",1);
- res.json({success:true,song:db.prepare("SELECT * FROM songs WHERE id=?").get(r.lastInsertRowid)});
+
+// Get all songs (for listener app and admin catalog)
+app.get('/api/admin/songs', (req, res) => {
+  res.json(getSongs());
 });
-app.put("/api/admin/songs/:id",(req,res)=>{
- const id=Number(req.params.id),s=db.prepare("SELECT * FROM songs WHERE id=?").get(id);
- if(!s)return res.status(404).json({error:"Song not found"});
- db.prepare("UPDATE songs SET title=?,artist=?,album=?,genre=?,description=?,published=? WHERE id=?")
- .run(req.body.title??s.title,req.body.artist??s.artist,req.body.album??s.album,req.body.genre??s.genre,req.body.description??s.description,Number(req.body.published??s.published),id);
- res.json(db.prepare("SELECT * FROM songs WHERE id=?").get(id));
+
+// Upload new song
+app.post('/api/admin/songs', upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), (req, res) => {
+  try {
+    const { title, artist, album, genre, description } = req.body;
+    if (!req.files.audio) {
+      return res.status(400).json({ error: 'Audio file is required.' });
+    }
+
+    const songs = getSongs();
+    const newSong = {
+      id: Date.now().toString(),
+      title,
+      artist,
+      album: album || 'Single',
+      genre: genre || 'Other',
+      description: description || '',
+      audio_url: `/uploads/audio/${req.files.audio[0].filename}`,
+      cover_url: req.files.cover ? `/uploads/covers/${req.files.cover[0].filename}` : '/assets/default-cover.svg',
+      plays: 0,
+      createdAt: new Date().toISOString()
+    };
+
+    songs.unshift(newSong);
+    saveSongs(songs);
+    res.status(201).json(newSong);
+  } catch (err) {
+    res.status(500).json({ error: 'Server failed to process upload.' });
+  }
 });
-app.delete("/api/admin/songs/:id",(req,res)=>{
- const id=Number(req.params.id),s=db.prepare("SELECT * FROM songs WHERE id=?").get(id);
- if(!s)return res.status(404).json({error:"Song not found"});
- [s.audio_url,s.cover_url].forEach(u=>{if(u){const f=path.join(__dirname,u.replace(/^\//,""));if(fs.existsSync(f))fs.unlinkSync(f)}});
- db.prepare("DELETE FROM songs WHERE id=?").run(id);res.json({success:true});
+
+// Track play count increment
+app.post('/api/songs/:id/play', (req, res) => {
+  const songs = getSongs();
+  const song = songs.find(s => s.id === req.params.id);
+  if (song) {
+    song.plays = (song.plays || 0) + 1;
+    saveSongs(songs);
+    return res.json({ success: true, plays: song.plays });
+  }
+  res.status(404).json({ error: 'Song not found' });
 });
-app.post("/api/songs/:id/play",(req,res)=>{db.prepare("UPDATE songs SET plays=plays+1 WHERE id=?").run(Number(req.params.id));res.json({success:true})});
-app.use((err,req,res,next)=>res.status(400).json({error:err.message||"Request failed"}));
-app.listen(PORT,"0.0.0.0",()=>console.log(`WaveLane: http://localhost:${PORT}`));
+
+// Delete song
+app.delete('/api/admin/songs/:id', (req, res) => {
+  let songs = getSongs();
+  const songToDelete = songs.find(s => s.id === req.params.id);
+
+  if (songToDelete) {
+    // Clean up local files
+    const deleteFile = (url) => {
+      if (url && !url.includes('/assets/')) {
+        const filePath = path.join(__dirname, url);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      }
+    };
+    deleteFile(songToDelete.audio_url);
+    deleteFile(songToDelete.cover_url);
+
+    songs = songs.filter(s => s.id !== req.params.id);
+    saveSongs(songs);
+    return res.json({ success: true });
+  }
+  res.status(404).json({ error: 'Song not found' });
+});
+
+// Start Server
+app.listen(PORT, () => {
+  console.log(`WaveLane Server running on http://localhost:${PORT}`);
+});
